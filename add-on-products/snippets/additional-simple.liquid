@@ -1,0 +1,82 @@
+<style>
+    .additional-products {
+        margin: 2rem 0;
+    }
+
+    .button-additional-product {
+        width: 380px;
+        font-size: 12px;
+        height: 50px;
+        margin: 0 0 1rem;
+    }
+
+    .additional-products h4 {
+        color: black;
+        font-size: 32px;
+        line-height: 1.2;
+        margin: 3rem 0 2rem;
+        font-weight: 700;
+    }
+
+    .button-additional-errors {
+        color: red;
+        font-weight: 700;
+    }
+</style>
+
+{% assign additional_products = product.metafields.custom.add_on_products.value %}
+{% if additional_products != blank %}
+<div class="additional-products">
+    <h3>{{ heading }}</h3>
+    {% for product in additional_products %}
+        <button class="buton-primary button-additional-product" id="{{ product.selected_or_first_available_variant.id }}" {% if product.available != true %}disabled{% endif %}>
+            Add to cart {{ product.title }}
+            {{ product.price | money }}
+        </button>
+    {% endfor %}
+    <div class="button-additional-errors">
+    </div>
+</div>
+{% endif %}
+<script>
+    const buttonAdditionalProduct = document.querySelectorAll('.button-additional-product');
+    buttonAdditionalProduct.forEach((button) => {
+        button.addEventListener('click', (event) => {
+            event.preventDefault();
+            const variantId = event.target.id;
+            const cartObject = document.querySelector('cart-notification') || document.querySelector('cart-drawer');
+            let formData = new FormData();
+            const errorBlock = document.querySelector('.button-additional-errors')
+            formData.append('items[][id]', variantId);
+            formData.append('items[][quantity]', '1'); // REPLACE BY YOUR QUANTITY
+
+            // Append to Cart object, used for renderContents
+            if (cartObject) {
+                formData.append(
+                    'sections',
+                    cartObject.getSectionsToRender().map((section) => section.id)
+                );
+                formData.append('sections_url', window.location.pathname);
+            }
+
+            fetch(window.Shopify.routes.root + 'cart/add.js', {
+                method: 'POST',
+                body: formData,
+            })
+                .then((response) => response.json())
+                .then((data) => {
+                    if (data.status) {
+                        errorBlock.innerHTML = data.message;
+                    } else {
+                        errorBlock.innerHTML = "";
+                    }
+                    if (!cartObject) return;
+                    cartObject.classList.remove('is-empty');
+                    cartObject.renderContents(data);
+                })
+                .catch((error) => {
+                    console.error('Error:', error);
+                });
+        });
+    });
+</script>

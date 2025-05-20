@@ -1,0 +1,116 @@
+<style>
+    .bundle-products {
+        border: 1px solid rosybrown;
+        padding: 1rem;
+    }
+
+    .bundle-products-button {
+        border: 1px solid black;
+        background-color: rosybrown;
+        color: black;
+        padding: 1rem;
+        cursor: pointer;
+    }
+</style>
+
+{% assign bundle = product.metafields.custom.add_on_products.value %}
+{% if bundle != blank %}
+<div class="bundle-products">
+    {% for product in bundle %}
+    {% assign product_variant = product.selected_or_first_available_variant %}
+    <div class="bundle-products__item">
+        <img src="{{ product.featured_image | image_url }}" alt="{{ product.title }}" width="120px" height="120px">
+        <h3 class="bundle-products__item-title">{{ product.title }}</h3>
+        <div class="bundle-products__item-variants">
+            {% if product.variants.size > 1 %}
+            <input type="hidden" value="{{ product_variant.id }}" class="variant-id">
+            {% for variant in product.variants %}
+            <label for="{{ variant.id }}">{{ variant.option1 }}</label>
+            <input type="radio" id="{{ variant.id }}" class="variant-input" name="variant" value="{{ variant.id }}"
+                data-price="{{ variant.price | money }}" {% if product_variant.id==variant.id %} checked{% endif %}>
+            <br>
+            {% endfor %}
+            {% else %}
+            <input type="hidden" value="{{ product_variant.id }}" class="variant-id">
+            {% endif %}
+        </div>
+        <b class="bundle-products__item-price">{{ product_variant.price | money }}</b>
+    </div>
+    {% endfor %}
+
+    <button class="bundle-products-button">
+        Add to cart
+    </button>
+</div>
+{% endif %}
+
+<script>
+    // Hide main product add to cart button, if it's needed
+    // But best way - create product template in the customizer and hide buttons in the product block
+    setTimeout(() => {
+        const mainProductButtons = document.querySelector('product-form.product-form');
+        if (mainProductButtons) {
+            mainProductButtons.style.display = 'none';
+        }
+    }, 1000);
+
+
+    // Add to cart additional products
+    const bundleProducts = document.querySelector('.bundle-products');
+    const bundleButton = document.querySelector('.bundle-products-button');
+    const bundleProductsId = document.querySelectorAll('.variant-id');
+    bundleButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        const cartObject = document.querySelector('cart-notification') || document.querySelector('cart-drawer');
+        let formData = new FormData();
+
+        // Reverse order to add to cart in Shopify
+        const reverseBundleProductsId = Array.from(bundleProductsId).reverse();
+
+        if (reverseBundleProductsId.length > 0) {
+            reverseBundleProductsId.forEach((item) => {
+                formData.append('items[][id]', item.value);
+                formData.append('items[][quantity]', '1'); // REPLACE BY YOUR QUANTITY
+            });
+        }
+
+        // Append to Cart object, used for renderContents
+        if (cartObject) {
+            formData.append(
+                'sections',
+                cartObject.getSectionsToRender().map((section) => section.id)
+            );
+            formData.append('sections_url', window.location.pathname);
+        }
+
+        fetch(window.Shopify.routes.root + 'cart/add.js', {
+            method: 'POST',
+            body: formData,
+        })
+            .then((response) => response.json())
+            .then((data) => {
+                if (!cartObject) return;
+                cartObject.classList.remove('is-empty');
+                cartObject.renderContents(data);
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+    });
+
+    //check variant button
+    const variantsButtons = document.querySelectorAll('.bundle-products__item-variants input[type="radio"]');
+    variantsButtons.forEach((variantButton) => {
+        variantButton.addEventListener('change', (event) => {
+            event.preventDefault();
+            const container = event.target.closest('.bundle-products__item');
+            const input = container.querySelector('.variant-id');
+            input.value = event.target.value;
+
+            const selectedVariantPrice = event.target.dataset.price;
+            const productPrice = container.querySelector('.bundle-products__item-price');
+            productPrice.innerHTML = selectedVariantPrice;
+        });
+    });
+
+</script>
